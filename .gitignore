@@ -8,9 +8,6 @@
 __pycache__/
 *.pyc
 
-# Modelos y datos grandes
-*.pkl
-
 # Streamlit
 .streamlit/
 

@@ -20,7 +20,7 @@ Final recommendations are generated using a weighted scoring strategy.
 
 ```mermaid
 flowchart TD
-    A[BigQuery: new-era-xdl<br/>s<datos semanales de sell_out, stock, master_material] --> B[Consulta SQL con CTEs<br/>sell_out, stock, combine, material_filtered]
+    A[BigQuery: new-era-xdl<br/><datos semanales de sell_out, stock, master_material] --> B[Consulta SQL con CTEs<br/>sell_out, stock, combine, material_filtered]
     C[GCS: Master Stores<br/>Partner, Concession, Wholesales] -->|filtro PBK = SI| B
     B --> D[(cluster_weekly.csv<br/>fila por cliente x semana)]
     D --> E[Ingeniería de características]

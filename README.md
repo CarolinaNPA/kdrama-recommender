@@ -20,22 +20,24 @@ Final recommendations are generated using a weighted scoring strategy.
 
 ```mermaid
 flowchart TD
-    A[BigQuery: new-era-xdl<br/>datos semanales de sell_out, stock, master_material] --> B[Consulta SQL con CTEs<br/>sell_out, stock, combine, material_filtered]
-    C[GCS: Master Stores<br/>Partner, Concession, Wholesales] -->|filtro PBK = SI| B
-    B --> D[(cluster_weekly.csv<br/>fila por cliente x semana)]
-    D --> E[Ingeniería de características]
-    E --> E1[Features de ventas]
-    E --> E2[Features de stock]
-    E --> E3[Ratios derivados]
-    E1 --> F[Preprocesamiento]
-    E2 --> F
-    E3 --> F
-    F --> F1[Winsorización percentil 99]
-    F1 --> F2[QuantileTransformer]
-    F2 --> F3[Pesos 50/50<br/>Size + Behaviour]
-    F3 --> G[KMeans k=3]
-    G --> H[Etiquetado determinístico<br/>por Total_SellOut promedio]
-    H --> I1[(clients_clustered.csv)]
-    H --> I2[tsne_clusters.png]
+    A[GCS:<br/>Mids_To_Proccess.parquet] --> D
+    B[BigQuery: ne_weekly_sell_out<br/>ventas históricas] --> C[Agregación de sell-out<br/>por Similar_mid]
+    B2[BigQuery: ne_master_customer<br/>filtros RETAIL / NON-RETAIL] --> C
+    C --> D[Filtrado de MIDs<br/>a pronosticar]
+    E[BigQuery: Material_similarity<br/>productos similares por MID] --> D
+    D --> F{¿Self-reference<br/>únicamente?}
+    F -->|Sí| G[Forecast = 0]
+    F -->|No| H[eval_arima_model<br/>por MID]
+    H --> H1{¿N de datos > 10?}
+    H1 -->|Sí| H2[auto_arima]
+    H1 -->|No| H3[Promedio ponderado]
+    H2 --> I[Ajustes:<br/>penetración + cap 1.5x]
+    H3 --> I
+    I --> J[Concatenación con<br/>productos self-reference]
+    G --> J
+    J --> K1[(retail.csv)]
+    J --> K2[(non_retail.csv)]
 ```
+
+
 

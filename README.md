@@ -17,80 +17,46 @@ The system combines:
 - Re-ranking using normalized metadata features
 
 Final recommendations are generated using a weighted scoring strategy.
-
 ```mermaid
 flowchart TD
-    Start([Inicio main]) --> LoadInputs[Cargar inputs]
+    A[Inicio: Backtest SS26<br/>4 meses disponibles] --> B[Definir cutoff<br/>SS26_START_DATE]
 
-    LoadInputs --> Mids[(Mids_To_Process<br/>parquet GCS)]
-    LoadInputs --> Sim[(Material_similarity<br/>BigQuery)]
-    LoadInputs --> Sellout[(weekly_sell_out<br/>BigQuery)]
-    LoadInputs --> Customers[(master_customer<br/>retail y non_retail)]
+    B --> C1[BigQuery: Mid<br/>identificar MIDs de SS26]
+    B --> C2[BigQuery: Material_similarity<br/>obtener similares por MID]
+    B --> C3[BigQuery: ne_weekly_sell_out<br/>histórico mensual de similares<br/>Date menor a cutoff]
 
-    Sellout --> Agg[Agregar sell-out por canal]
-    Customers --> Agg
+    C1 --> D[Lista de MIDs<br/>a pronosticar]
+    C2 --> D
 
-    Mids --> Filter[Filtrar similares de MIDs a procesar]
-    Sim --> Filter
+    C3 --> E[Construir dataset<br/>mensual histórico]
+    E --> E1[Mapear cada mes calendario<br/>a mes relativo de temporada<br/>mes 1, mes 2, mes 3, mes 4]
 
-    Filter --> SelfRef{¿Self-reference?<br/>Mid = Similar_mid<br/>registro único}
+    D --> F[Para cada MID a pronosticar]
+    E1 --> F
 
-    SelfRef -->|Sí| Zero1[Forecast = 0]
-    SelfRef -->|No| Loop[Loop por cada MID]
+    F --> G{Tiene similares<br/>con datos?}
+    G -->|No| H[Forecast igual a 0<br/>o fallback]
+    G -->|Sí| I[Predicción mensual<br/>promedio de similares<br/>por mes relativo]
 
-    Loop --> Sort[Ordenar similares por Rank ascendente]
-    Sort --> Merge[Merge con sell-out del canal]
+    I --> J[Forecast por MID:<br/>4 valores mensuales]
+    H --> J
 
-    Merge --> HasData{¿Hay datos<br/>después del merge?}
-    HasData -->|No| Zero2[Forecast = 0<br/>+ warning en log]
-    HasData -->|Sí| ModelCall[Llamar a model]
+    J --> K[(forecast_propio.csv)]
 
-    ModelCall --> Penetration[Calcular penetración de canal]
-    Penetration --> SizeCheck{¿len data_series &gt; 10?}
+    L[BigQuery: ne_weekly_sell_out<br/>venta real SS26<br/>Date entre cutoff y cutoff+4m] --> M[Real mensual<br/>por MID]
 
-    SizeCheck -->|No| WAvg[Promedio ponderado<br/>pesos 0.5 a 1.0]
-    SizeCheck -->|Sí| ARIMA[auto_arima<br/>seasonal=False<br/>n_periods=9]
+    K --> N[Comparación]
+    M --> N
+    O[(retail.csv / non_retail.csv<br/>output ARIMA producción)] --> N
 
-    ARIMA --> ARIMAOk{¿auto_arima<br/>tuvo éxito?}
-    ARIMAOk -->|No| WAvg
-    ARIMAOk -->|Sí| LastPred[Tomar prediction último valor]
+    N --> P1[Métricas:<br/>MAE, MAPE, RMSE, Bias]
+    N --> P2[Gráfica agregada:<br/>Real vs ARIMA vs Modelo propio]
+    N --> P3[Top MIDs por error]
+    N --> P4[Distribución del error]
 
-    WAvg --> PenLow{¿Penetración &lt; 30%?}
-    LastPred --> PenLow
-
-    PenLow -->|Sí| Boost[Boost x 1.2]
-    PenLow -->|No| NoBoost[Sin boost]
-
-    Boost --> Cap[Cap: forecast ≤ 1.5x histórico máximo]
-    NoBoost --> Cap
-
-    Cap --> Negative{¿Forecast ≤ 0?}
-    Negative -->|Sí| MeanFallback[Fallback a media]
-    Negative -->|No| Final[Forecast final]
-    MeanFallback --> Final
-
-    Final --> Collect[Concatenar resultados por canal]
-    Zero1 --> Collect
-    Zero2 --> Collect
-
-    Collect --> SaveR[(retail.csv<br/>GCS)]
-    Collect --> SaveNR[(non_retail.csv<br/>GCS)]
-
-    SaveR --> End([Fin])
-    SaveNR --> End
-
-    classDef inputData fill:#e1f0fb,stroke:#185FA5,stroke-width:1.5px,color:#042C53
-    classDef output fill:#d6f0e0,stroke:#0F6E56,stroke-width:1.5px,color:#04342C
-    classDef decision fill:#fff4d6,stroke:#A8740F,stroke-width:1.5px,color:#412402
-    classDef issue fill:#fce4e4,stroke:#A53D3D,stroke-width:1.5px,color:#501313
-    classDef process fill:#eeedfe,stroke:#534AB7,stroke-width:1.5px,color:#26215C
-
-    class Mids,Sim,Sellout,Customers inputData
-    class SaveR,SaveNR output
-    class SelfRef,HasData,SizeCheck,ARIMAOk,PenLow,Negative decision
-    class ARIMA,LastPred,Zero1,Zero2,MeanFallback issue
-    class Agg,Filter,Loop,Sort,Merge,ModelCall,Penetration,WAvg,Boost,NoBoost,Cap,Final,Collect process
+    P1 --> Q[Reporte de comparación]
+    P2 --> Q
+    P3 --> Q
+    P4 --> Q
 ```
-
-
 

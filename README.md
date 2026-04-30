@@ -19,44 +19,33 @@ The system combines:
 Final recommendations are generated using a weighted scoring strategy.
 ```mermaid
 flowchart TD
-    A[Inicio: Backtest SS26<br/>4 meses disponibles] --> B[Definir cutoff<br/>SS26_START_DATE]
-
-    B --> C1[BigQuery: Mid<br/>identificar MIDs de SS26]
-    B --> C2[BigQuery: Material_similarity<br/>obtener similares por MID]
-    B --> C3[BigQuery: ne_weekly_sell_out<br/>histórico mensual de similares<br/>Date menor a cutoff]
-
-    C1 --> D[Lista de MIDs<br/>a pronosticar]
-    C2 --> D
-
-    C3 --> E[Construir dataset<br/>mensual histórico]
-    E --> E1[Mapear cada mes calendario<br/>a mes relativo de temporada<br/>mes 1, mes 2, mes 3, mes 4]
-
-    D --> F[Para cada MID a pronosticar]
-    E1 --> F
-
-    F --> G{Tiene similares<br/>con datos?}
-    G -->|No| H[Forecast igual a 0<br/>o fallback]
-    G -->|Sí| I[Predicción mensual<br/>promedio de similares<br/>por mes relativo]
-
-    I --> J[Forecast por MID:<br/>4 valores mensuales]
-    H --> J
-
-    J --> K[(forecast_propio.csv)]
-
-    L[BigQuery: ne_weekly_sell_out<br/>venta real SS26<br/>Date entre cutoff y cutoff+4m] --> M[Real mensual<br/>por MID]
-
-    K --> N[Comparación]
-    M --> N
-    O[(retail.csv / non_retail.csv<br/>output ARIMA producción)] --> N
-
-    N --> P1[Métricas:<br/>MAE, MAPE, RMSE, Bias]
-    N --> P2[Gráfica agregada:<br/>Real vs ARIMA vs Modelo propio]
-    N --> P3[Top MIDs por error]
-    N --> P4[Distribución del error]
-
-    P1 --> Q[Reporte de comparación]
-    P2 --> Q
-    P3 --> Q
-    P4 --> Q
+    A[(GCS:<br/>Mids_To_Proccess.parquet)] --> D
+    
+    B1[BigQuery: ne_weekly_sell_out<br/>query_pzs] --> C1[get_final_sellouts<br/>retail]
+    B1 --> C2[get_final_sellouts<br/>non-retail]
+    
+    B2[BigQuery: ne_master_customer<br/>query_customers_retail] --> C1
+    B3[BigQuery: ne_master_customer<br/>query_customers_non_retail] --> C2
+    
+    B4[BigQuery: Material_similarity<br/>query_similarity] --> D[Filtrado de MIDs<br/>a pronosticar]
+    
+    D --> E{MID con<br/>self-reference?}
+    E -->|Sí| F[Forecast igual a 0<br/>asignación directa]
+    E -->|No| G[eval_arima_model<br/>por MID]
+    
+    C1 --> G
+    C2 --> G
+    
+    G --> G1{Cantidad de<br/>datos mayor a 10?}
+    G1 -->|Sí| G2[auto_arima<br/>n_periods igual a 9]
+    G1 -->|No| G3[Promedio ponderado<br/>pesos 0.5 a 1.0]
+    
+    G2 --> H[Ajustes:<br/>penetración de canal<br/>cap 1.5x histórico]
+    G3 --> H
+    
+    H --> I[Concatenación con<br/>productos self-reference]
+    F --> I
+    
+    I --> J1[(retail.csv)]
+    I --> J2[(non_retail.csv)]
 ```
-
